@@ -18,7 +18,7 @@ pub async fn new_user_rt(Json(create_user): Json<CreateUser>) -> impl IntoRespon
     match user {
         Ok(_user) => Json("New user added."),
         Err(CreationError::DuplicateKey(err)) => Json(err),
-        Err(_) => Json("Something went wron"),
+        Err(_) => Json("Something went wrong"),
     }
 }
 

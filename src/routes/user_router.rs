@@ -1,4 +1,4 @@
-use crate::models::user_model::{CreateUser, CreationError, UpdateUser, User};
+use crate::models::user_model::{CreateUser, CreationError, Response, UpdateUser, User};
 use axum::{
     extract::Path,
     response::{IntoResponse, Json},
@@ -27,10 +27,18 @@ pub async fn update_user_rt(
     Json(_update_user): Json<UpdateUser>,
 ) -> impl IntoResponse {
     //todo!();
-    Json("unimplemented!()")
+    let result = User::update_user(_id, _update_user);
+
+    match result {
+        Ok(response) => Response::Success {
+            message: "User updated",
+            data: Some(response),
+        },
+        Err(err) => Response::Failure(err),
+    }
 }
 
 pub async fn delete_user_rt(Path(_id): Path<i32>) -> impl IntoResponse {
     //todo!();
-    Json("unimplemented!()")
+    unimplemented!();
 }

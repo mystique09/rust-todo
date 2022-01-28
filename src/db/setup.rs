@@ -6,7 +6,7 @@ use std::env;
 pub fn establish_conn() -> PgConnection {
     dotenv().ok();
 
-    let db_url = env::var("DB_URL").unwrap();
+    let db_url = env::var("DATABASE_URL").unwrap();
 
     PgConnection::establish(&db_url).unwrap()
 }

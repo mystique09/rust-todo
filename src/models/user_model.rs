@@ -26,14 +26,16 @@ pub struct CreateUser {
     pub email: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Identifiable, AsChangeset, Debug, Deserialize)]
+#[table_name = "userst"]
+#[primary_key("id")]
 pub struct UpdateUser {
-    pub username: String,
-    pub email: String,
-    pub password: String,
+    pub username: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseUser {
     pub id: i32,
     pub username: String,
@@ -89,9 +91,36 @@ impl User {
             })
             .collect()
     }
-    pub fn update_user(_id: i32, _data: CreateUser) -> Self {
-        unimplemented!();
+    pub fn update_user(_id: i32, _data: UpdateUser) -> Result<ResponseUser, String> {
+        let conn = establish_conn();
+        // let target = users.filter(id.eq(_id)).load::<User>(&conn).unwrap().get(0);
+
+        let updated = diesel::update(userst::table)
+            .filter(id.eq(_id))
+            .set(_data)
+            .get_result::<User>(&conn);
+
+        match updated {
+            Ok(updated) => {
+                let response = ResponseUser {
+                    id: _id,
+                    username: updated.username,
+                    email: updated.email,
+                    role: updated.role,
+                };
+                Ok(response)
+            }
+            Err(err) => Err(format!("Unable to update user: {}", err)),
+        }
+
+        /*"let response = ResponseUser {
+            id: _id,
+            username: updated.username,
+            email: updated.email,
+            role: updated.role,
+        };*/
     }
+
     pub fn delete_user(_id: i32) -> Self {
         unimplemented!();
     }
@@ -124,4 +153,25 @@ pub enum CreationError<'a> {
     SomethingWentWrong,
     // Duplicate
     DuplicateKey(&'a str),
+}
+
+impl<'a> IntoResponse for Response<'a> {
+    fn into_response(self) -> axum::response::Response {
+        let (status, body) = match self {
+            Response::Success { message, data } => (StatusCode::OK, (message.to_string(), data)),
+            Response::Failure(error) => (StatusCode::BAD_REQUEST, (error.to_string(), None)),
+        };
+
+        let parse_body = axum::Json(json!({ "body": body }));
+        (status, parse_body).into_response()
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum Response<'a> {
+    Success {
+        message: &'a str,
+        data: Option<ResponseUser>,
+    },
+    Failure(String),
 }

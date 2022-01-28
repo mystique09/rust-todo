@@ -14,7 +14,7 @@ table! {
         username -> Varchar,
         password -> Varchar,
         email -> Varchar,
-        role -> Nullable<Varchar>,
+        role -> Varchar,
     }
 }
 

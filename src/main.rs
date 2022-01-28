@@ -1,7 +1,7 @@
 use axum::{response::Html, routing::get, Router};
 use basic::routes::{
     todo_router::{all_todos_rt, delete_todo_rt, get_todo_rt, new_todo_rt, update_todo_rt},
-    user_router::{all_user, user_by_id},
+    user_router::{delete_user_rt, get_user_rt, get_users_rt, new_user_rt, update_user_rt},
 };
 use std::net::SocketAddr;
 
@@ -9,18 +9,20 @@ use std::net::SocketAddr;
 async fn main() {
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let app = Router::new()
-        // users routes
+        // main route
         .route("/", get(index_handler))
-        .route("/users", get(all_user))
-        .route("/user/:id", get(user_by_id))
+        // user routes
+        .route("/users", get(get_users_rt).post(new_user_rt))
+        .route(
+            "/users/:id",
+            get(get_user_rt).delete(delete_user_rt).put(update_user_rt),
+        )
         // todos routes
         .route("/todos", get(all_todos_rt).post(new_todo_rt))
         .route(
             "/todos/:id",
             get(get_todo_rt).delete(delete_todo_rt).put(update_todo_rt),
         );
-    //.route("/todos/:id", delete(delete_todo_rt))
-    //.rote("/todos/:id", put(update_todo_rt));
 
     println!("Listening on port {}", 3000);
     axum::Server::bind(&addr)

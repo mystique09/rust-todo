@@ -5,5 +5,5 @@ CREATE TABLE "users" (
   username VARCHAR NOT NULL UNIQUE,
   password VARCHAR NOT NULL,
   email VARCHAR NOT NULL UNIQUE,
-  role VARCHAR DEFAULT 'Normal'
+  role VARCHAR NOT NULL DEFAULT 'Normal'
 );

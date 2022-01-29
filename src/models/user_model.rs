@@ -1,7 +1,5 @@
 extern crate diesel;
 use self::diesel::prelude::*;
-
-use crate::db::setup::establish_conn;
 use crate::schema;
 use axum::{http::StatusCode, response::IntoResponse};
 use schema::users as userst;
@@ -44,8 +42,10 @@ pub struct ResponseUser {
 }
 
 impl User {
-    pub fn new_user(_create_user: CreateUser) -> Result<Self, CreationError<'static>> {
-        let conn = establish_conn();
+    pub fn new_user(
+        conn: &PgConnection,
+        _create_user: CreateUser,
+    ) -> Result<Self, CreationError<'static>> {
         let new_user = CreateUser {
             username: _create_user.username,
             password: _create_user.password,
@@ -54,7 +54,7 @@ impl User {
 
         let user = diesel::insert_into(userst::table)
             .values(&new_user)
-            .get_result(&conn);
+            .get_result(conn);
 
         match user {
             Ok(user) => Ok(user),
@@ -64,19 +64,15 @@ impl User {
         }
     }
 
-    pub fn get_user(_id: i32) -> Vec<Self> {
-        let conn = establish_conn();
-
-        let result = users.filter(id.eq(_id)).load::<User>(&conn).unwrap();
+    pub fn get_user(conn: &PgConnection, _id: i32) -> Vec<Self> {
+        let result = users.filter(id.eq(_id)).load::<User>(conn).unwrap();
         result
     }
-    pub fn get_users() -> Vec<ResponseUser> {
-        let conn = establish_conn();
-
+    pub fn get_users(conn: &PgConnection) -> Vec<ResponseUser> {
         let results = users
             .filter(role.eq("Normal"))
             .limit(10)
-            .load::<User>(&conn)
+            .load::<User>(conn)
             .unwrap();
         results
             .into_iter()
@@ -91,14 +87,15 @@ impl User {
             })
             .collect()
     }
-    pub fn update_user(_id: i32, _data: UpdateUser) -> Result<ResponseUser, String> {
-        let conn = establish_conn();
-        // let target = users.filter(id.eq(_id)).load::<User>(&conn).unwrap().get(0);
-
+    pub fn update_user(
+        conn: &PgConnection,
+        _id: i32,
+        _data: UpdateUser,
+    ) -> Result<ResponseUser, String> {
         let updated = diesel::update(userst::table)
             .filter(id.eq(_id))
             .set(_data)
-            .get_result::<User>(&conn);
+            .get_result::<User>(conn);
 
         match updated {
             Ok(updated) => {
@@ -112,16 +109,9 @@ impl User {
             }
             Err(err) => Err(format!("Unable to update user: {}", err)),
         }
-
-        /*"let response = ResponseUser {
-            id: _id,
-            username: updated.username,
-            email: updated.email,
-            role: updated.role,
-        };*/
     }
 
-    pub fn delete_user(_id: i32) -> Self {
+    pub fn delete_user(_conn: &PgConnection, _id: i32) -> Self {
         unimplemented!();
     }
 }

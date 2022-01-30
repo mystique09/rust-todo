@@ -1,7 +1,8 @@
 extern crate diesel;
 use self::diesel::prelude::*;
-use crate::schema;
+use crate::{db::setup::establish_conn, schema};
 use axum::{http::StatusCode, response::IntoResponse};
+use diesel::result::Error as DbError;
 use schema::users as userst;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -42,10 +43,7 @@ pub struct ResponseUser {
 }
 
 impl User {
-    pub fn new_user(
-        conn: &PgConnection,
-        _create_user: CreateUser,
-    ) -> Result<Self, CreationError<'static>> {
+    pub fn new_user(conn: &PgConnection, _create_user: CreateUser) -> Result<User, DbError> {
         let new_user = CreateUser {
             username: _create_user.username,
             password: _create_user.password,
@@ -56,100 +54,68 @@ impl User {
             .values(&new_user)
             .get_result(conn);
 
-        match user {
-            Ok(user) => Ok(user),
-            Err(_) => Err(CreationError::DuplicateKey(
-                "Email or username is already in used.",
-            )),
-        }
+        user
     }
 
-    pub fn get_user(conn: &PgConnection, _id: i32) -> Vec<Self> {
-        let result = users.filter(id.eq(_id)).load::<User>(conn).unwrap();
+    pub fn get_user(conn: &PgConnection, _id: i32) -> Result<Vec<Self>, DbError> {
+        let result = users.filter(id.eq(_id)).load::<User>(conn);
         result
     }
-    pub fn get_users(conn: &PgConnection) -> Vec<ResponseUser> {
-        let results = users
-            .filter(role.eq("Normal"))
-            .limit(10)
-            .load::<User>(conn)
-            .unwrap();
+    pub fn get_users(conn: &PgConnection) -> Result<Vec<User>, DbError> {
+        let results = users.filter(role.eq("Normal")).limit(10).load::<User>(conn);
         results
-            .into_iter()
-            .map(|user| {
-                let new_res_user = ResponseUser {
-                    id: user.id,
-                    username: user.username,
-                    email: user.email,
-                    role: user.role,
-                };
-                new_res_user
-            })
-            .collect()
     }
-    pub fn update_user(
-        conn: &PgConnection,
-        _id: i32,
-        _data: UpdateUser,
-    ) -> Result<ResponseUser, String> {
+    pub fn update_user(conn: &PgConnection, _id: i32, _data: UpdateUser) -> Result<User, DbError> {
+        let has_user = User::check_user_by_id(_id);
+
+        if has_user == false {
+            return Err(DbError::NotFound);
+        }
+
         let updated = diesel::update(userst::table)
             .filter(id.eq(_id))
             .set(_data)
             .get_result::<User>(conn);
 
-        match updated {
-            Ok(updated) => {
-                let response = ResponseUser {
-                    id: _id,
-                    username: updated.username,
-                    email: updated.email,
-                    role: updated.role,
-                };
-                Ok(response)
-            }
-            Err(err) => Err(format!("Unable to update user: {}", err)),
-        }
+        updated
     }
 
     pub fn delete_user(_conn: &PgConnection, _id: i32) -> Self {
         unimplemented!();
     }
-}
 
-impl<'a> IntoResponse for CreationError<'a> {
-    fn into_response(self) -> axum::response::Response {
-        let (status, body) = match self {
-            CreationError::EmailIsUsed => (StatusCode::BAD_REQUEST, "Email is already in used."),
-            CreationError::UserAlreadyExist => (StatusCode::BAD_REQUEST, "User already exist."),
-            CreationError::SomethingWentWrong => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong.")
-            }
-            CreationError::DuplicateKey(err) => (StatusCode::BAD_REQUEST, err),
-        };
+    pub fn check_user_by_id(uid: i32) -> bool {
+        let conn = establish_conn();
+        let user = users.filter(id.eq(uid)).load::<User>(&conn);
 
-        let error_m = axum::Json(json!({ "err": body }));
-        (status, error_m).into_response()
+        match user {
+            Ok(user) => match user.get(0) {
+                Some(_existing_user) => true,
+                None => false,
+            },
+            Err(_) => false,
+        }
+    }
+
+    pub fn check_user_by_uname(uname: String) -> bool {
+        let conn = establish_conn();
+        let user = users.filter(username.eq(uname)).load::<User>(&conn);
+
+        match user {
+            Ok(user) => match user.get(0) {
+                Some(_existing_user) => true,
+                None => false,
+            },
+            Err(_) => false,
+        }
     }
 }
 
-// An enum for to respond for errors when creatint new users.
-#[derive(Debug)]
-pub enum CreationError<'a> {
-    // UserAlreadyExist variant
-    UserAlreadyExist,
-    // If emaail is en use
-    EmailIsUsed,
-    //Something went wrong
-    SomethingWentWrong,
-    // Duplicate
-    DuplicateKey(&'a str),
-}
-
-impl<'a> IntoResponse for Response<'a> {
+impl<'a, T: Serialize> IntoResponse for Response<'a, T> {
     fn into_response(self) -> axum::response::Response {
         let (status, body) = match self {
-            Response::Success { message, data } => (StatusCode::OK, (message.to_string(), data)),
-            Response::Failure(error) => (StatusCode::BAD_REQUEST, (error.to_string(), None)),
+            Self::Success { message, data } => (StatusCode::OK, (message.to_string(), data)),
+            Self::Failure(error) => (StatusCode::BAD_REQUEST, (error.to_string(), None)),
         };
 
         let parse_body = axum::Json(json!({ "body": body }));
@@ -157,11 +123,18 @@ impl<'a> IntoResponse for Response<'a> {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub enum Response<'a> {
-    Success {
-        message: &'a str,
-        data: Option<ResponseUser>,
-    },
+#[derive(Debug)]
+pub enum Response<'a, T> {
+    Success { message: &'a str, data: Option<T> },
     Failure(String),
+}
+
+impl<'a, T> Response<'a, T> {
+    pub fn success(message: &'a str, data: Option<T>) -> Self {
+        Self::Success { message, data }
+    }
+
+    pub fn failure(message: String) -> Self {
+        Self::Failure(message)
+    }
 }

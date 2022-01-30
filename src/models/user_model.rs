@@ -1,9 +1,8 @@
 extern crate diesel;
 use self::diesel::prelude::*;
-
-use crate::db::setup::establish_conn;
-use crate::schema;
+use crate::{db::setup::establish_conn, schema};
 use axum::{http::StatusCode, response::IntoResponse};
+use diesel::result::Error as DbError;
 use schema::users as userst;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -26,14 +25,16 @@ pub struct CreateUser {
     pub email: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Identifiable, AsChangeset, Debug, Deserialize)]
+#[table_name = "userst"]
+#[primary_key("id")]
 pub struct UpdateUser {
-    pub username: String,
-    pub email: String,
-    pub password: String,
+    pub username: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseUser {
     pub id: i32,
     pub username: String,
@@ -42,8 +43,7 @@ pub struct ResponseUser {
 }
 
 impl User {
-    pub fn new_user(_create_user: CreateUser) -> Result<Self, CreationError<'static>> {
-        let conn = establish_conn();
+    pub fn new_user(conn: &PgConnection, _create_user: CreateUser) -> Result<User, DbError> {
         let new_user = CreateUser {
             username: _create_user.username,
             password: _create_user.password,
@@ -52,76 +52,89 @@ impl User {
 
         let user = diesel::insert_into(userst::table)
             .values(&new_user)
-            .get_result(&conn);
+            .get_result(conn);
+
+        user
+    }
+
+    pub fn get_user(conn: &PgConnection, _id: i32) -> Result<Vec<Self>, DbError> {
+        let result = users.filter(id.eq(_id)).load::<User>(conn);
+        result
+    }
+    pub fn get_users(conn: &PgConnection) -> Result<Vec<User>, DbError> {
+        let results = users.filter(role.eq("Normal")).limit(10).load::<User>(conn);
+        results
+    }
+    pub fn update_user(conn: &PgConnection, _id: i32, _data: UpdateUser) -> Result<User, DbError> {
+        let has_user = User::check_user_by_id(_id);
+
+        if has_user == false {
+            return Err(DbError::NotFound);
+        }
+
+        let updated = diesel::update(userst::table)
+            .filter(id.eq(_id))
+            .set(_data)
+            .get_result::<User>(conn);
+
+        updated
+    }
+
+    pub fn delete_user(_conn: &PgConnection, _id: i32) -> Self {
+        unimplemented!();
+    }
+
+    pub fn check_user_by_id(uid: i32) -> bool {
+        let conn = establish_conn();
+        let user = users.filter(id.eq(uid)).load::<User>(&conn);
 
         match user {
-            Ok(user) => Ok(user),
-            Err(_) => Err(CreationError::DuplicateKey(
-                "Email or username is already in used.",
-            )),
+            Ok(user) => match user.get(0) {
+                Some(_existing_user) => true,
+                None => false,
+            },
+            Err(_) => false,
         }
     }
 
-    pub fn get_user(_id: i32) -> Vec<Self> {
+    pub fn check_user_by_uname(uname: String) -> bool {
         let conn = establish_conn();
+        let user = users.filter(username.eq(uname)).load::<User>(&conn);
 
-        let result = users.filter(id.eq(_id)).load::<User>(&conn).unwrap();
-        result
-    }
-    pub fn get_users() -> Vec<ResponseUser> {
-        let conn = establish_conn();
-
-        let results = users
-            .filter(role.eq("Normal"))
-            .limit(10)
-            .load::<User>(&conn)
-            .unwrap();
-        results
-            .into_iter()
-            .map(|user| {
-                let new_res_user = ResponseUser {
-                    id: user.id,
-                    username: user.username,
-                    email: user.email,
-                    role: user.role,
-                };
-                new_res_user
-            })
-            .collect()
-    }
-    pub fn update_user(_id: i32, _data: CreateUser) -> Self {
-        unimplemented!();
-    }
-    pub fn delete_user(_id: i32) -> Self {
-        unimplemented!();
+        match user {
+            Ok(user) => match user.get(0) {
+                Some(_existing_user) => true,
+                None => false,
+            },
+            Err(_) => false,
+        }
     }
 }
 
-impl<'a> IntoResponse for CreationError<'a> {
+impl<'a, T: Serialize> IntoResponse for Response<'a, T> {
     fn into_response(self) -> axum::response::Response {
         let (status, body) = match self {
-            CreationError::EmailIsUsed => (StatusCode::BAD_REQUEST, "Email is already in used."),
-            CreationError::UserAlreadyExist => (StatusCode::BAD_REQUEST, "User already exist."),
-            CreationError::SomethingWentWrong => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong.")
-            }
-            CreationError::DuplicateKey(err) => (StatusCode::BAD_REQUEST, err),
+            Self::Success { message, data } => (StatusCode::OK, (message.to_string(), data)),
+            Self::Failure(error) => (StatusCode::BAD_REQUEST, (error.to_string(), None)),
         };
 
-        let error_m = axum::Json(json!({ "err": body }));
-        (status, error_m).into_response()
+        let parse_body = axum::Json(json!({ "body": body }));
+        (status, parse_body).into_response()
     }
 }
 
-// An enum for to respond for errors when creatint new users.
 #[derive(Debug)]
-pub enum CreationError<'a> {
-    // UserAlreadyExist variant
-    UserAlreadyExist,
-    // If emaail is en use
-    EmailIsUsed,
-    //Something went wrong
-    SomethingWentWrong,
-    // Duplicate
-    DuplicateKey(&'a str),
+pub enum Response<'a, T> {
+    Success { message: &'a str, data: Option<T> },
+    Failure(String),
+}
+
+impl<'a, T> Response<'a, T> {
+    pub fn success(message: &'a str, data: Option<T>) -> Self {
+        Self::Success { message, data }
+    }
+
+    pub fn failure(message: String) -> Self {
+        Self::Failure(message)
+    }
 }

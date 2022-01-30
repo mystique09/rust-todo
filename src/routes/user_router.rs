@@ -1,15 +1,22 @@
 use crate::{
-    models::user_model::{CreateUser, CreationError, Response, UpdateUser, User},
+    models::user_model::{CreateUser, Response, UpdateUser, User},
     SharedStateDb,
 };
 use axum::{
     extract::{Extension, Path},
     response::{IntoResponse, Json},
 };
+use diesel::result::DatabaseErrorKind;
+use diesel::result::Error as DbError;
+
 pub async fn get_users_rt(Extension(state): Extension<SharedStateDb>) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
     let result = User::get_users(&conn);
-    Json(result)
+
+    match result {
+        Ok(all_users) => Response::success("All user", Some(all_users)),
+        Err(_) => Response::failure("Database Error".to_string()),
+    }
 }
 
 pub async fn get_user_rt(
@@ -18,7 +25,12 @@ pub async fn get_user_rt(
 ) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
     let result = User::get_user(&conn, id);
-    Json(result)
+
+    match result {
+        Ok(ok_user) => Response::success("User", Some(ok_user)),
+        Err(DbError::NotFound) => Response::failure("User not found".to_string()),
+        Err(_why) => Response::failure(_why.to_string()),
+    }
 }
 
 pub async fn new_user_rt(
@@ -27,10 +39,13 @@ pub async fn new_user_rt(
 ) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
     let user = User::new_user(&conn, create_user);
+
     match user {
-        Ok(_user) => Json("New user added."),
-        Err(CreationError::DuplicateKey(err)) => Json(err),
-        Err(_) => Json("Something went wrong"),
+        Ok(new_user) => Response::success("New user", Some(new_user)),
+        Err(DbError::DatabaseError(DatabaseErrorKind::UniqueViolation, violation)) => {
+            Response::failure(violation.message().to_string())
+        }
+        Err(_why) => Response::failure("Unable to create user".to_string()),
     }
 }
 
@@ -43,11 +58,11 @@ pub async fn update_user_rt(
     let result = User::update_user(&conn, _id, _update_user);
 
     match result {
-        Ok(response) => Response::Success {
-            message: "User updated",
-            data: Some(response),
-        },
-        Err(err) => Response::Failure(err),
+        Ok(updated_user) => Response::success("Updated user", Some(updated_user)),
+        Err(DbError::DatabaseError(DatabaseErrorKind::__Unknown, err)) => {
+            Response::failure(err.message().to_string())
+        }
+        Err(_why) => Response::failure(format!("Unable to update user: {}", _why)),
     }
 }
 

@@ -2,6 +2,7 @@ extern crate diesel;
 use crate::schema;
 
 use self::diesel::prelude::*;
+use diesel::result::Error as DbError;
 use diesel::{Insertable, Queryable};
 use schema::todos_table as todost;
 use serde::{Deserialize, Serialize};
@@ -42,48 +43,51 @@ pub struct UpdateTodo {
 
 impl Todo {
     /* A method to query all todos from the database.
-     * @return {Vec<User>}
+     * @return {Vec<Todo>}
      */
-    pub fn all_todo(conn: &PgConnection) -> Vec<Self> {
+    pub fn all_todo(conn: &PgConnection) -> Result<Vec<Self>, DbError> {
         let result = todos_table
             .filter(completed.eq(false))
             .limit(10)
             .load::<Todo>(conn);
 
-        match result {
-            Ok(todos) => todos,
-            Err(_) => vec![],
-        }
+        result
     }
     /* A method to query a specific todo from the database.
      * @param {Todo::id} i32
      * @return {Todo}
      */
-    pub fn get_todo(conn: &PgConnection, _id: i32) -> Vec<Self> {
-        let result = todos_table.filter(id.eq(_id)).load::<Todo>(conn).unwrap();
+    pub fn get_todo(conn: &PgConnection, _id: i32) -> Result<Vec<Self>, DbError> {
+        let result = todos_table.filter(id.eq(_id)).load::<Todo>(conn);
         result
     }
     /* A method to create a new todos
      * @param {CreateTodo}
      * @return {Todo}
      */
-    pub fn create_todo(conn: &PgConnection, _create_todo: CreateTodo) -> Self {
+    pub fn create_todo(conn: &PgConnection, _create_todo: CreateTodo) -> Result<Self, DbError> {
         let new_todo = CreateTodo {
             author: _create_todo.author,
             title: _create_todo.title,
             description: _create_todo.description,
-            completed: _create_todo.completed,
+            completed: false,
         };
 
         diesel::insert_into(todost::table)
             .values(&new_todo)
             .get_result(conn)
-            .unwrap()
     }
     // A methor to update a new todo.
     // @param {UpdateTodo}
     // @return {Todo}
-    pub fn update_todo(_conn: &PgConnection, _update_todo: UpdateTodo) -> Self {
-        unimplemented!();
+    pub fn update_todo(
+        conn: &PgConnection,
+        _id: i32,
+        _update_todo: UpdateTodo,
+    ) -> Result<Self, DbError> {
+        diesel::update(todost::table)
+            .filter(id.eq(_id))
+            .set(_update_todo)
+            .get_result::<Todo>(conn)
     }
 }

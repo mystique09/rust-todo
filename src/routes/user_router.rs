@@ -43,7 +43,7 @@ pub async fn new_user_rt(
     match user {
         Ok(new_user) => Response::success("New user", Some(new_user)),
         Err(DbError::DatabaseError(DatabaseErrorKind::UniqueViolation, violation)) => {
-            Response::failure(violation.message().to_string())
+            Response::failure(violation.details().unwrap().to_string())
         }
         Err(_why) => Response::failure("Unable to create user".to_string()),
     }

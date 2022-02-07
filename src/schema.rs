@@ -18,7 +18,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(
-    todos_table,
-    users,
-);
+allow_tables_to_appear_in_same_query!(todos_table, users,);

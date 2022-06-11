@@ -45,10 +45,11 @@ impl Todo {
     /* A method to query all todos from the database.
      * @return {Vec<Todo>}
      */
-    pub fn all_todo(conn: &PgConnection) -> Result<Vec<Self>, DbError> {
+    pub fn all_todo(conn: &PgConnection, page: i64) -> Result<Vec<Self>, DbError> {
         todos_table
             .filter(completed.eq(false))
             .limit(10)
+            .offset(page)
             .load::<Todo>(conn)
     }
     /* A method to query a specific todo from the database.
@@ -86,5 +87,12 @@ impl Todo {
             .filter(id.eq(_id))
             .set(_update_todo)
             .get_result::<Todo>(conn)
+    }
+
+    // A method to delete a todo.
+    // @param {i32}
+    // @return {Todo}
+    pub fn delete_todo(conn: &PgConnection, _id: i32) -> Result<Self, DbError> {
+        diesel::delete(todost::table.filter(id.eq(_id))).get_result(conn)
     }
 }

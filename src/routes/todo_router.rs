@@ -13,7 +13,7 @@ use crate::models::user_model::Response;
 
 pub async fn all_todos_rt(Extension(state): Extension<SharedStateDb>) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
-    let todos = Todo::all_todo(&conn);
+    let todos = Todo::all_todo(&conn, 1);
 
     match todos {
         Ok(todos) => Response::success("All todos", Some(todos)),
@@ -69,6 +69,16 @@ pub async fn update_todo_rt(
     }
 }
 
-pub async fn delete_todo_rt(Path(_id): Path<i32>) -> impl IntoResponse {
-    Json("[DELETE] /todos/:id")
+pub async fn delete_todo_rt(
+    Path(_id): Path<i32>,
+    Extension(state): Extension<SharedStateDb>,
+) -> impl IntoResponse {
+    let conn = state.conn.lock().unwrap();
+    let todo = Todo::delete_todo(&conn, _id);
+
+    match todo {
+        Ok(todo) => Response::success("Deleted todo", Some(todo)),
+        Err(DbError::NotFound) => Response::failure("Todo not found!".to_string()),
+        Err(_why) => Response::failure("Something went wrong.".to_string()),
+    }
 }

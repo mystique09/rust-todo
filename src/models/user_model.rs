@@ -58,9 +58,15 @@ impl User {
     pub fn get_user(conn: &PgConnection, _id: i32) -> Result<Vec<Self>, DbError> {
         users.filter(id.eq(_id)).load::<User>(conn)
     }
-    pub fn get_users(conn: &PgConnection) -> Result<Vec<User>, DbError> {
-        users.filter(role.eq("Normal")).limit(10).load::<User>(conn)
+
+    pub fn get_users(conn: &PgConnection, page: i64) -> Result<Vec<User>, DbError> {
+        users
+            .filter(role.eq("Normal"))
+            .limit(10)
+            .offset(page)
+            .load::<User>(conn)
     }
+
     pub fn update_user(conn: &PgConnection, _id: i32, _data: UpdateUser) -> Result<User, DbError> {
         let has_user = User::check_user_by_id(_id);
 
@@ -74,8 +80,16 @@ impl User {
             .get_result::<User>(conn)
     }
 
-    pub fn delete_user(_conn: &PgConnection, _id: i32) -> Self {
-        unimplemented!();
+    pub fn delete_user(conn: &PgConnection, _id: i32) -> Result<Self, DbError> {
+        let has_user = User::check_user_by_id(_id);
+
+        if !has_user {
+            return Err(DbError::NotFound);
+        }
+
+        diesel::delete(userst::table)
+            .filter(id.eq(_id))
+            .get_result::<User>(conn)
     }
 
     pub fn check_user_by_id(uid: i32) -> bool {

@@ -11,7 +11,7 @@ use diesel::result::Error as DbError;
 
 pub async fn get_users_rt(Extension(state): Extension<SharedStateDb>) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
-    let result = User::get_users(&conn);
+    let result = User::get_users(&conn, 1);
 
     match result {
         Ok(all_users) => Response::success("All user", Some(all_users)),

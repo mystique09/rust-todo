@@ -15,17 +15,19 @@ pub async fn auth_rt(
     Extension(state): Extension<SharedStateDb>,
 ) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
+    let username = auth_data.username;
 
-    match User::check_user_by_uname(&conn, auth_data.username) {
-        true => {
-            // Authenticate user
-            let user = User::get_user_by_username(&conn, auth_data.username).unwrap();
-            if {
-                Response::success("Logged In", Some(true))
-            } else {
-                Response::failure("Invalid password".to_string())
+    match User::get_user_by_username(&conn, username) {
+        Ok(user) => match user {
+            Some(data) => {
+                if data.validate(auth_data.password) {
+                    Response::success("Logged in.", Some(true))
+                } else {
+                    Response::failure("Incorrect password.".to_string())
+                }
             }
-        }
-        false => Response::failure("User not founnd.".to_string()),
+            None => Response::failure("User doesn't exist.".to_string()),
+        },
+        Err(why) => Response::failure(why.to_string()),
     }
 }

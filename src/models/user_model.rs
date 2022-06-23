@@ -1,6 +1,7 @@
 extern crate diesel;
+
 use self::diesel::prelude::*;
-use crate::{db::setup::establish_conn, schema};
+use crate::schema;
 use axum::{http::StatusCode, response::IntoResponse};
 use diesel::result::Error as DbError;
 use schema::users as userst;
@@ -55,8 +56,13 @@ impl User {
             .get_result(conn)
     }
 
-    pub fn get_user(conn: &PgConnection, _id: i32) -> Result<Vec<Self>, DbError> {
-        users.filter(id.eq(_id)).load::<User>(conn)
+    pub fn get_user(conn: &PgConnection, _id: i32) -> Result<Option<User>, DbError> {
+        let user = users.filter(id.eq(_id)).limit(1).load::<User>(conn);
+
+        match user {
+            Ok(mut u) => Ok(u.pop()),
+            Err(why) => Err(why),
+        }
     }
 
     pub fn get_users(conn: &PgConnection, page: i64) -> Result<Vec<User>, DbError> {
@@ -67,13 +73,22 @@ impl User {
             .load::<User>(conn)
     }
 
-    pub fn update_user(conn: &PgConnection, _id: i32, _data: UpdateUser) -> Result<User, DbError> {
-        let has_user = User::check_user_by_id(_id);
+    pub fn get_user_by_username(
+        conn: &PgConnection,
+        _username: String,
+    ) -> Result<Option<User>, DbError> {
+        let user = users
+            .filter(username.eq(_username))
+            .limit(1)
+            .load::<User>(conn);
 
-        if !has_user {
-            return Err(DbError::NotFound);
+        match user {
+            Ok(mut u) => Ok(u.pop()),
+            Err(why) => Err(why),
         }
+    }
 
+    pub fn update_user(conn: &PgConnection, _id: i32, _data: UpdateUser) -> Result<User, DbError> {
         diesel::update(userst::table)
             .filter(id.eq(_id))
             .set(_data)
@@ -81,41 +96,13 @@ impl User {
     }
 
     pub fn delete_user(conn: &PgConnection, _id: i32) -> Result<Self, DbError> {
-        let has_user = User::check_user_by_id(_id);
-
-        if !has_user {
-            return Err(DbError::NotFound);
-        }
-
         diesel::delete(userst::table)
             .filter(id.eq(_id))
             .get_result::<User>(conn)
     }
 
-    pub fn check_user_by_id(uid: i32) -> bool {
-        let conn = establish_conn();
-        let user = users.filter(id.eq(uid)).load::<User>(&conn);
-
-        match user {
-            Ok(user) => match user.get(0) {
-                Some(_existing_user) => true,
-                None => false,
-            },
-            Err(_) => false,
-        }
-    }
-
-    pub fn check_user_by_uname(uname: String) -> bool {
-        let conn = establish_conn();
-        let user = users.filter(username.eq(uname)).load::<User>(&conn);
-
-        match user {
-            Ok(user) => match user.get(0) {
-                Some(_existing_user) => true,
-                None => false,
-            },
-            Err(_) => false,
-        }
+    pub fn validate(self, pwd: String) -> bool {
+        self.password.to_string() == pwd
     }
 }
 
@@ -126,7 +113,7 @@ impl<'a, T: Serialize> IntoResponse for Response<'a, T> {
             Self::Failure(error) => (StatusCode::BAD_REQUEST, (error, None)),
         };
 
-        let parse_body = axum::Json(json!({ "body": body }));
+        let parse_body = axum::Json(json!({ "message": body.0, "body": body.1 }));
         (status, parse_body).into_response()
     }
 }

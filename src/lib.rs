@@ -14,3 +14,8 @@ extern crate diesel;
 pub struct SharedStateDb {
     pub conn: Arc<Mutex<PgConnection>>,
 }
+
+/*
+Auth guard, checks if user is logged in
+*/
+pub struct Auth;

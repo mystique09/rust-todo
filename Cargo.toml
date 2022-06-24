@@ -16,3 +16,4 @@ headers = "0.3.5"
 bcrypt = "0.10.1"
 serde_json = "1.0.78"
 tower-cookies = { version = "0.7.0", features = ["private", "signed"]}
+once_cell = "1.12.0"

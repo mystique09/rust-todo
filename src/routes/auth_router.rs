@@ -1,4 +1,7 @@
-use axum::{extract::Extension, response::IntoResponse, Json};
+use axum::{
+    extract::{Extension, Json},
+    response::IntoResponse,
+};
 use tower_cookies::{Cookie, Cookies};
 
 use crate::{
@@ -16,9 +19,9 @@ pub async fn auth_index() -> impl IntoResponse {
 }
 
 pub async fn auth_rt(
-    cookies: Cookies,
-    Json(auth_data): Json<AuthData>,
     Extension(state): Extension<SharedStateDb>,
+    Json(auth_data): Json<AuthData>,
+    cookies: Cookies,
 ) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
     let key = state.cookie_secret.lock().unwrap();

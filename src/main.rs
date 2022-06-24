@@ -1,8 +1,4 @@
-use axum::{
-    response::Html,
-    routing::{get, post},
-    AddExtensionLayer, Router,
-};
+use axum::{response::Html, routing::get, AddExtensionLayer, Router};
 use basic::{
     db::setup::establish_conn,
     routes::{

@@ -1,4 +1,5 @@
 use axum::{extract::Extension, response::IntoResponse, Json};
+use tower_cookies::{Cookie, Cookies};
 
 use crate::{
     models::user_model::{Response, User},
@@ -11,6 +12,7 @@ pub struct AuthData {
 }
 
 pub async fn auth_rt(
+    cookies: Cookies,
     Json(auth_data): Json<AuthData>,
     Extension(state): Extension<SharedStateDb>,
 ) -> impl IntoResponse {
@@ -21,6 +23,7 @@ pub async fn auth_rt(
         Ok(user) => match user {
             Some(data) => {
                 if data.validate(auth_data.password) {
+                    cookies.add(Cookie::new("session_cookie", "testcookie"));
                     Response::success("Logged in.", Some(true))
                 } else {
                     Response::failure("Incorrect password.".to_string())

@@ -1,18 +1,23 @@
-use axum::{response::Html, routing::get, AddExtensionLayer, Router};
-use basic::SharedStateDb;
+use axum::{
+    response::Html,
+    routing::{get, post},
+    AddExtensionLayer, Router,
+};
 use basic::{
     db::setup::establish_conn,
     routes::{
+        auth_router::auth_rt,
         todo_router::{all_todos_rt, delete_todo_rt, get_todo_rt, new_todo_rt, update_todo_rt},
         user_router::{delete_user_rt, get_user_rt, get_users_rt, new_user_rt, update_user_rt},
     },
 };
+use basic::{routes::auth_router::auth_index, SharedStateDb};
+use once_cell::sync::OnceCell;
 use std::env;
 use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
-use tokio::sync::OnceCell;
 use tower_cookies::{CookieManagerLayer, Key};
 
 #[tokio::main]
@@ -20,6 +25,7 @@ async fn main() {
     dotenv::dotenv().ok();
     let conn = Arc::new(Mutex::new(establish_conn()));
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+
     let cookie_secret = env::var("COOKIE_SECRET").unwrap();
     let key: OnceCell<Key> = OnceCell::new();
     key.set(Key::from(cookie_secret.as_bytes())).ok();
@@ -40,6 +46,7 @@ async fn main() {
             "/todos/:id",
             get(get_todo_rt).delete(delete_todo_rt).put(update_todo_rt),
         )
+        .route("/auth", get(auth_index).post(auth_rt))
         .layer(CookieManagerLayer::new())
         .layer(AddExtensionLayer::new(SharedStateDb {
             conn,

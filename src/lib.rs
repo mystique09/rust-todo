@@ -1,6 +1,6 @@
 use diesel::PgConnection;
+use once_cell::sync::OnceCell;
 use std::sync::{Arc, Mutex};
-use tokio::sync::OnceCell;
 use tower_cookies::Key;
 
 pub mod db;

@@ -17,13 +17,16 @@ pub async fn auth_rt(
     Extension(state): Extension<SharedStateDb>,
 ) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
+    let secret_cookie = state.cookie_secret.lock().unwrap();
+
     let username = auth_data.username;
+    let p_cookies = cookies.private(secret_cookie.get().unwrap());
 
     match User::get_user_by_username(&conn, username) {
         Ok(user) => match user {
             Some(data) => {
                 if data.validate(auth_data.password) {
-                    cookies.add(Cookie::new("session_cookie", "testcookie"));
+                    p_cookies.add(Cookie::new("session_cookie", "testcookie"));
                     Response::success("Logged in.", Some(true))
                 } else {
                     Response::failure("Incorrect password.".to_string())

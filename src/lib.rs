@@ -1,6 +1,7 @@
-use std::sync::{Arc, Mutex};
-
 use diesel::PgConnection;
+use std::sync::{Arc, Mutex};
+use tokio::sync::OnceCell;
+use tower_cookies::Key;
 
 pub mod db;
 pub mod models;
@@ -13,7 +14,7 @@ extern crate diesel;
 #[derive(Clone)]
 pub struct SharedStateDb {
     pub conn: Arc<Mutex<PgConnection>>,
-    pub cookie_secret: Arc<Mutex<String>>,
+    pub cookie_secret: Arc<Mutex<OnceCell<Key>>>,
 }
 
 /*

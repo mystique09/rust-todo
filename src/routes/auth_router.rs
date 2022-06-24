@@ -24,7 +24,7 @@ pub async fn auth_rt(
     let key = state.cookie_secret.lock().unwrap();
 
     let username = auth_data.username;
-    let session_cookie = cookies.private(key.get().unwrap());
+    let session_cookie = cookies.signed(key.get().unwrap());
 
     match User::get_user_by_username(&conn, username) {
         Ok(user) => match user {

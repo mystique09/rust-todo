@@ -13,6 +13,7 @@ extern crate diesel;
 #[derive(Clone)]
 pub struct SharedStateDb {
     pub conn: Arc<Mutex<PgConnection>>,
+    pub cookie_secret: Arc<Mutex<String>>,
 }
 
 /*

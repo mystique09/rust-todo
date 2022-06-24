@@ -12,7 +12,8 @@ use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
-use tower_cookies::CookieManagerLayer;
+use tokio::sync::OnceCell;
+use tower_cookies::{CookieManagerLayer, Key};
 
 #[tokio::main]
 async fn main() {
@@ -20,7 +21,9 @@ async fn main() {
     let conn = Arc::new(Mutex::new(establish_conn()));
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let cookie_secret = env::var("COOKIE_SECRET").unwrap();
-    let shared_cookie_secret = Arc::new(Mutex::new(cookie_secret));
+    let key: OnceCell<Key> = OnceCell::new();
+    key.set(Key::from(cookie_secret.as_bytes())).ok();
+    let shared_cookie_secret = Arc::new(Mutex::new(key));
 
     let app = Router::new()
         // main route

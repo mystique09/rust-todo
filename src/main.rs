@@ -7,6 +7,7 @@ use basic::{
         user_router::{delete_user_rt, get_user_rt, get_users_rt, new_user_rt, update_user_rt},
     },
 };
+use std::env;
 use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
@@ -15,8 +16,12 @@ use tower_cookies::CookieManagerLayer;
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     let conn = Arc::new(Mutex::new(establish_conn()));
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let cookie_secret = env::var("COOKIE_SECRET").unwrap();
+    let shared_cookie_secret = Arc::new(Mutex::new(cookie_secret));
+
     let app = Router::new()
         // main route
         .route("/", get(index_handler))
@@ -33,7 +38,10 @@ async fn main() {
             get(get_todo_rt).delete(delete_todo_rt).put(update_todo_rt),
         )
         .layer(CookieManagerLayer::new())
-        .layer(AddExtensionLayer::new(SharedStateDb { conn }));
+        .layer(AddExtensionLayer::new(SharedStateDb {
+            conn,
+            cookie_secret: shared_cookie_secret,
+        }));
 
     println!("Listening on port {}", 3000);
     axum::Server::bind(&addr)

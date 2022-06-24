@@ -11,22 +11,26 @@ pub struct AuthData {
     pub password: String,
 }
 
+pub async fn auth_index() -> impl IntoResponse {
+    Response::success("You are in login endpoint", Some(true))
+}
+
 pub async fn auth_rt(
     cookies: Cookies,
     Json(auth_data): Json<AuthData>,
     Extension(state): Extension<SharedStateDb>,
 ) -> impl IntoResponse {
     let conn = state.conn.lock().unwrap();
-    let secret_cookie = state.cookie_secret.lock().unwrap();
+    let key = state.cookie_secret.lock().unwrap();
 
     let username = auth_data.username;
-    let p_cookies = cookies.private(secret_cookie.get().unwrap());
+    let session_cookie = cookies.private(key.get().unwrap());
 
     match User::get_user_by_username(&conn, username) {
         Ok(user) => match user {
             Some(data) => {
                 if data.validate(auth_data.password) {
-                    p_cookies.add(Cookie::new("session_cookie", "testcookie"));
+                    session_cookie.add(Cookie::new("session_cookie", "testcookie"));
                     Response::success("Logged in.", Some(true))
                 } else {
                     Response::failure("Incorrect password.".to_string())

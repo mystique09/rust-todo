@@ -11,6 +11,7 @@ use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
+use tower_cookies::CookieManagerLayer;
 
 #[tokio::main]
 async fn main() {
@@ -31,6 +32,7 @@ async fn main() {
             "/todos/:id",
             get(get_todo_rt).delete(delete_todo_rt).put(update_todo_rt),
         )
+        .layer(CookieManagerLayer::new())
         .layer(AddExtensionLayer::new(SharedStateDb { conn }));
 
     println!("Listening on port {}", 3000);
